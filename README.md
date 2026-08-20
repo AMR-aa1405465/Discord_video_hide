@@ -29,6 +29,12 @@ The extension works on Discord Web, including the regular, PTB, and Canary sites
 - The extension only adds an overlay. It does not cut off or reduce the participant’s video traffic.
 - It does not use AI to track scenes or actions and block them automatically. For now, videos must be hidden manually.
 
+## Preview
+
+![Hidden video overlay](screenshots/video-hidden.png)
+
+![Extension popup](screenshots/popup.png)
+
 ## Tests
 
 ```sh
