@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Discord Video Hide",
+  "version": "1.0.0",
+  "description": "Toggle a blur/blackout overlay on any participant's video in a Discord voice call.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://discord.com/*",
+    "https://ptb.discord.com/*",
+    "https://canary.discord.com/*"
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  },
+  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://discord.com/*",
+        "https://ptb.discord.com/*",
+        "https://canary.discord.com/*"
+      ],
+      "js": [
+        "src/shared/constants.js",
+        "src/shared/storage.js",
+        "src/content/state.js",
+        "src/content/identity.js",
+        "src/content/tile-finder.js",
+        "src/content/overlay.js",
+        "src/content/registry.js",
+        "src/content/reconciler.js",
+        "src/content/index.js"
+      ],
+      "css": ["src/content/styles.css"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

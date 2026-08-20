@@ -1,0 +1,69 @@
+.dvh-root {
+  position: relative;
+}
+
+.dvh-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  border-radius: inherit;
+}
+
+.dvh-overlay.dvh-hidden {
+  opacity: 1;
+}
+
+.dvh-overlay[data-mode="blur"] {
+  backdrop-filter: blur(var(--dvh-blur, 40px));
+  -webkit-backdrop-filter: blur(var(--dvh-blur, 40px));
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.dvh-overlay[data-mode="black"] {
+  background: #000;
+}
+
+.dvh-overlay.dvh-fallback {
+  background: rgba(0, 0, 0, 0.96);
+}
+
+.dvh-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 6;
+  pointer-events: auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.35;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+
+.dvh-btn svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.dvh-root:hover > .dvh-btn,
+.dvh-btn:hover,
+.dvh-btn:focus-visible,
+.dvh-btn.dvh-btn--on,
+.dvh-btn.dvh-btn--always {
+  opacity: 1;
+}
+
+.dvh-btn:hover {
+  background: rgba(0, 0, 0, 0.82);
+}

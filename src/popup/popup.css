@@ -1,0 +1,173 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #313338;
+  color: #dbdee1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 320px;
+  min-height: 440px;
+  margin: 0;
+  background: #313338;
+}
+
+main {
+  padding: 16px;
+}
+
+header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 16px;
+}
+
+h2,
+legend,
+label {
+  font-size: 13px;
+}
+
+header p,
+#empty-state,
+#status {
+  color: #949ba4;
+  font-size: 11px;
+}
+
+fieldset,
+section {
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid #3f4147;
+  border-radius: 8px;
+  background: #2b2d31;
+}
+
+fieldset label {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  margin-right: 12px;
+}
+
+legend {
+  padding: 0 5px;
+  font-weight: 650;
+}
+
+.dvh-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+#blur-strength {
+  width: 100%;
+  accent-color: #5865f2;
+}
+
+#blur-section.dvh-is-disabled {
+  opacity: 0.48;
+}
+
+#blur-preview {
+  position: relative;
+  overflow: hidden;
+  height: 40px;
+  margin-top: 7px;
+  border-radius: 5px;
+  background: linear-gradient(120deg, #5865f2, #eb459e, #fee75c);
+}
+
+#blur-preview::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  backdrop-filter: blur(var(--preview-blur, 10px));
+  -webkit-backdrop-filter: blur(var(--preview-blur, 10px));
+}
+
+#blur-preview span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+#hidden-list {
+  max-height: 120px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+#hidden-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid #3f4147;
+  font-size: 12px;
+}
+
+button {
+  border: 0;
+  color: #dbdee1;
+  cursor: pointer;
+}
+
+.dvh-text-button {
+  padding: 2px;
+  background: transparent;
+  color: #aeb4ff;
+  font-size: 11px;
+}
+
+.dvh-remove-button {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: #3f4147;
+}
+
+button:hover {
+  color: #fff;
+}
+
+footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+footer label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+input {
+  accent-color: #5865f2;
+}
