@@ -47,7 +47,7 @@ test("a repeated applyState is a DOM no-op", () => {
     }
   };
   const document = { createElement: () => trackedNode(counter) };
-  const context = vm.createContext({ window, document, getComputedStyle: () => ({ position: "static" }), CSS: { supports: () => true } });
+  const context = vm.createContext({ window, document, getComputedStyle: () => ({ position: "static" }), CSS: { supports: () => true }, setTimeout, clearTimeout });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/content/overlay.js"), "utf8"), context);
   const tile = trackedNode(counter);
   const record = window.__DVH__.overlay.decorate(tile, { key: "id:1", label: "A", strength: "strong" });
@@ -137,4 +137,87 @@ test("face mode exposes remembered tracking and blackout controls", () => {
   window.__DVH__.overlay.applyState(tile, record, { ...base, faceAction: "black" });
   assert.equal(record.overlayEl.dataset.mode, "black");
   assert.equal(record.overlayEl.hasClass("dvh-hidden"), true);
+});
+
+test("tracking-status toggle shows per-person profile details", () => {
+  const counter = { count: 0 };
+  const registry = new WeakMap();
+  const window = {
+    __DVH__: {
+      constants: {
+        CLS: { ROOT: "dvh-root", HIDDEN: "dvh-hidden", OVERLAY: "dvh-overlay", BTN: "dvh-btn", BTN_ON: "dvh-btn--on", FALLBACK: "dvh-fallback" },
+        FACE_PROFILE_LEVELS: [{}, {}, {}, {}]
+      },
+      registry: { set: (tile, record) => registry.set(tile, record), delete: (tile) => registry.delete(tile) },
+      state: { toggle() {}, toggleFaceTracking() {}, toggleFaceBlackout() {} }
+    }
+  };
+  const document = { createElement: () => trackedNode(counter) };
+  const context = vm.createContext({ window, document, getComputedStyle: () => ({ position: "static" }), CSS: { supports: () => true }, setTimeout, clearTimeout });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/content/overlay.js"), "utf8"), context);
+  const tile = trackedNode(counter);
+  const record = window.__DVH__.overlay.decorate(tile, { key: "id:4", label: "Mona", strength: "strong" });
+
+  window.__DVH__.overlay.applyState(tile, record, {
+    mode: "face",
+    faceAction: "track",
+    faceProfile: {
+      level: 1,
+      padding: 1.45,
+      lostTimeoutMs: 3500,
+      maxOcclusionMs: 7000,
+      movementEvents: 2,
+      occlusionEvents: 1,
+      lastReason: "movement",
+      lastUnstableAt: 1000,
+      lastAdaptedAt: 1000
+    },
+    showTrackingStatus: true
+  });
+
+  assert.equal(record.statusEl.hidden, false);
+  assert.match(record.statusEl.textContent, /Mona/);
+  assert.match(record.statusEl.textContent, /Crop 1\.45×/);
+  assert.match(record.statusEl.textContent, /Frequent movement detected — profile increased/);
+
+  window.__DVH__.overlay.applyState(tile, record, {
+    mode: "face",
+    faceAction: "track",
+    faceProfile: { level: 1, padding: 1.45, lostTimeoutMs: 3500, maxOcclusionMs: 7000 },
+    showTrackingStatus: false
+  });
+  assert.equal(record.statusEl.hidden, true);
+});
+
+test("face zoom never starts for the signed-in user's own video", () => {
+  const counter = { count: 0 };
+  const calls = [];
+  const registry = new WeakMap();
+  const window = {
+    __DVH__: {
+      constants: { CLS: { ROOT: "dvh-root", HIDDEN: "dvh-hidden", OVERLAY: "dvh-overlay", BTN: "dvh-btn", BTN_ON: "dvh-btn--on", FALLBACK: "dvh-fallback" } },
+      registry: { set: (tile, record) => registry.set(tile, record), delete: (tile) => registry.delete(tile) },
+      state: { toggle() {}, toggleFaceTracking() {}, toggleFaceBlackout() {} },
+      faceZoomController: {
+        start() { calls.push("start"); },
+        stop() { calls.push("stop"); }
+      }
+    }
+  };
+  const document = { createElement: () => trackedNode(counter) };
+  const context = vm.createContext({ window, document, getComputedStyle: () => ({ position: "static" }), CSS: { supports: () => true } });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/content/overlay.js"), "utf8"), context);
+  const tile = trackedNode(counter);
+  const record = window.__DVH__.overlay.decorate(tile, { key: "id:self", label: "Me", strength: "strong" });
+
+  window.__DVH__.overlay.applyState(tile, record, {
+    mode: "face",
+    faceAction: "track",
+    faceProfile: { level: 0, padding: 1.3, lostTimeoutMs: 2500, maxOcclusionMs: 5000 },
+    isCurrentUser: true
+  });
+
+  assert.deepEqual(calls, ["stop"]);
+  assert.equal(record.overlayEl.hasClass("dvh-hidden"), false);
+  assert.match(record.btnEl.title, /disabled for your own video/);
 });

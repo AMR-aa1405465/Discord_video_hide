@@ -12,6 +12,85 @@
     event.preventDefault();
   }
 
+  function seconds(milliseconds) {
+    const value = Math.max(0, Number(milliseconds) || 0) / 1000;
+    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  }
+
+  function reasonLabel(profile, maxLevel) {
+    const reason = profile && profile.lastReason;
+    const adapted = Number(profile && profile.lastAdaptedAt) > 0 &&
+      Number(profile && profile.lastAdaptedAt) === Number(profile && profile.lastUnstableAt);
+    if (reason === "movement") {
+      const movement = Number(profile.movementEvents) > 1 ? "Frequent movement detected" : "Large movement detected";
+      if (adapted && Number(profile.level) >= maxLevel) return `${movement} — maximum profile reached`;
+      return adapted ? `${movement} — profile increased` : `${movement} — level unchanged`;
+    }
+    if (reason === "occlusion") {
+      if (adapted && Number(profile.level) >= maxLevel) return "Face occlusion detected — maximum profile reached";
+      return adapted ? "Face occlusion detected — profile increased" : "Face occlusion detected — level unchanged";
+    }
+    if (reason === "stable") return "Stable for 10 minutes — profile reset";
+    return "No automatic adjustments yet";
+  }
+
+  function phaseLabel(phase) {
+    if (phase === "tracking") return "Tracking face";
+    if (phase === "motion") return "Face hidden — following motion";
+    if (phase === "holding") return "Face temporarily lost — holding crop";
+    if (phase === "fallback") return "Face not found — showing full video";
+    if (phase === "paused") return "Face tracking paused for this person";
+    if (phase === "black") return "Video blacked out for this person";
+    if (phase === "inactive") return "Switch to Face only to start tracking";
+    if (phase === "self") return "Your video — face zoom is disabled";
+    return "Looking for a stable face";
+  }
+
+  function clearStatusTimer(record) {
+    if (record.statusTimer !== null) clearTimeout(record.statusTimer);
+    if (record.statusHideTimer !== null) clearTimeout(record.statusHideTimer);
+    record.statusTimer = null;
+    record.statusHideTimer = null;
+  }
+
+  function updateTrackingStatus(record, update, force) {
+    if (!record || !record.statusEl) return;
+    if (update) record.trackingRuntime = { ...(record.trackingRuntime || {}), ...update };
+    if (!record.trackingStatusEnabled) {
+      clearStatusTimer(record);
+      record.statusEl.hidden = true;
+      return;
+    }
+
+    const profile = record.trackingProfile || {};
+    const runtime = record.trackingRuntime || {};
+    const maxLevel = Math.max(0, DVH.constants.FACE_PROFILE_LEVELS.length - 1);
+    const label = record.identity && record.identity.label ? record.identity.label : "Participant";
+    const reason = reasonLabel(profile, maxLevel);
+    const text = [
+      `${label} · ${phaseLabel(runtime.phase)}`,
+      `Crop ${Number(profile.padding) || 1.3}× · Lost ${seconds(profile.lostTimeoutMs)}s · Occlusion ${seconds(profile.maxOcclusionMs)}s`,
+      `Level ${Number(profile.level) || 0}/${maxLevel} · ${reason}`
+    ].join("\n");
+    const changed = record.statusEl.textContent !== text;
+    if (!changed && force !== true) return;
+
+    record.statusEl.textContent = text;
+    record.statusEl.title = `Movement events: ${Number(profile.movementEvents) || 0}; occlusion events: ${Number(profile.occlusionEvents) || 0}`;
+    clearStatusTimer(record);
+    record.statusEl.classList.remove("dvh-tracking-status--leaving");
+    record.statusEl.hidden = false;
+    record.statusTimer = setTimeout(() => {
+      record.statusEl.classList.add("dvh-tracking-status--leaving");
+      record.statusHideTimer = setTimeout(() => {
+        record.statusEl.hidden = true;
+        record.statusEl.classList.remove("dvh-tracking-status--leaving");
+        record.statusHideTimer = null;
+      }, 300);
+      record.statusTimer = null;
+    }, 6000);
+  }
+
   function decorate(tile, identity, video) {
     const overlayEl = document.createElement("div");
     overlayEl.className = CLS.OVERLAY;
@@ -21,6 +100,10 @@
     canvasEl.className = "dvh-face-canvas";
     canvasEl.hidden = true;
     overlayEl.append(canvasEl);
+
+    const statusEl = document.createElement("div");
+    statusEl.className = "dvh-tracking-status";
+    statusEl.hidden = true;
 
     const btnEl = document.createElement("button");
     btnEl.className = CLS.BTN;
@@ -45,18 +128,28 @@
       canvasEl,
       btnEl,
       blackBtnEl,
+      statusEl,
+      trackingProfile: null,
+      trackingRuntime: { phase: "starting" },
+      trackingStatusEnabled: false,
+      statusTimer: null,
+      statusHideTimer: null,
+      isCurrentUser: false,
       rootAdded: false,
       appliedHidden: null,
       appliedMode: null,
       appliedFaceAction: null,
       appliedFaceProfile: null,
       appliedStrength: null,
-      appliedButtonVisibility: null
+      appliedButtonVisibility: null,
+      appliedTrackingStatus: null,
+      appliedIsCurrentUser: null
     };
 
     btnEl.addEventListener("pointerdown", stopPointerEvent);
     btnEl.addEventListener("click", (event) => {
       stopPointerEvent(event);
+      if (record.appliedMode === "face" && record.isCurrentUser) return;
       if (record.appliedMode === "face") DVH.state.toggleFaceTracking(record.key);
       else DVH.state.toggle(record.key, record.identity);
     });
@@ -70,16 +163,18 @@
       tile.classList.add(CLS.ROOT);
       record.rootAdded = true;
     }
-    tile.append(overlayEl, btnEl, blackBtnEl);
+    tile.append(overlayEl, btnEl, blackBtnEl, statusEl);
     DVH.registry.set(tile, record);
     return record;
   }
 
   function destroy(tile, record) {
     if (DVH.faceZoomController) DVH.faceZoomController.stop(record);
+    clearStatusTimer(record);
     record.overlayEl.remove();
     record.btnEl.remove();
     record.blackBtnEl.remove();
+    record.statusEl.remove();
     if (record.rootAdded) tile.classList.remove(CLS.ROOT);
     DVH.registry.delete(tile);
   }
@@ -92,21 +187,37 @@
       faceProfile.level,
       faceProfile.padding,
       faceProfile.lostTimeoutMs,
-      faceProfile.maxOcclusionMs
+      faceProfile.maxOcclusionMs,
+      faceProfile.lastUnstableAt,
+      faceProfile.lastAdaptedAt,
+      faceProfile.movementEvents,
+      faceProfile.occlusionEvents,
+      faceProfile.lastReason
     ].join(":");
-    const tracking = mode === "face" && faceAction === "track";
-    const hidden = mode === "face" ? faceAction !== "full" : options.hidden === true;
+    const isCurrentUser = options.isCurrentUser === true;
+    const tracking = mode === "face" && faceAction === "track" && !isCurrentUser;
+    const hidden = mode === "face"
+      ? (isCurrentUser ? faceAction === "black" : faceAction !== "full")
+      : options.hidden === true;
     const visualMode = mode === "face" && faceAction === "black" ? "black" : mode;
     const strength = Math.min(80, Math.max(8, Number(options.blurStrength) || 40));
     const buttonVisibility = options.buttonVisibility === "always" ? "always" : "hover";
+    const showTrackingStatus = options.showTrackingStatus === true;
     if (
       record.appliedHidden === hidden &&
       record.appliedMode === mode &&
       record.appliedFaceAction === faceAction &&
       record.appliedFaceProfile === faceProfileSignature &&
       record.appliedStrength === strength &&
-      record.appliedButtonVisibility === buttonVisibility
+      record.appliedButtonVisibility === buttonVisibility &&
+      record.appliedTrackingStatus === showTrackingStatus &&
+      record.appliedIsCurrentUser === isCurrentUser
     ) return;
+
+    const trackingStatusWasEnabled = record.appliedTrackingStatus === true;
+    record.trackingProfile = faceProfile;
+    record.trackingStatusEnabled = showTrackingStatus;
+    record.isCurrentUser = isCurrentUser;
 
     record.overlayEl.classList.toggle(CLS.HIDDEN, hidden);
     record.btnEl.classList.toggle(CLS.BTN_ON, hidden);
@@ -122,9 +233,21 @@
       if (tracking) DVH.faceZoomController.start(record, faceProfile);
       else DVH.faceZoomController.stop(record);
     }
+    if (!tracking) {
+      record.trackingRuntime = {
+        phase: faceAction === "black"
+          ? "black"
+          : isCurrentUser && mode === "face"
+            ? "self"
+            : mode === "face" ? "paused" : "inactive"
+      };
+    }
+    updateTrackingStatus(record, null, showTrackingStatus && !trackingStatusWasEnabled);
     if (mode === "face") {
       record.btnEl.setAttribute("aria-pressed", String(tracking));
-      record.btnEl.title = tracking ? "Show full video for this person" : "Enable face tracking for this person";
+      record.btnEl.title = isCurrentUser
+        ? "Face zoom is disabled for your own video"
+        : tracking ? "Show full video for this person" : "Enable face tracking for this person";
       record.btnEl.innerHTML = tracking ? EYE : EYE_OFF;
       record.blackBtnEl.setAttribute("aria-pressed", String(faceAction === "black"));
       record.blackBtnEl.title = faceAction === "black" ? "Remove blackout" : "Blackout entire video";
@@ -139,7 +262,9 @@
     record.appliedFaceProfile = faceProfileSignature;
     record.appliedStrength = strength;
     record.appliedButtonVisibility = buttonVisibility;
+    record.appliedTrackingStatus = showTrackingStatus;
+    record.appliedIsCurrentUser = isCurrentUser;
   }
 
-  DVH.overlay = { decorate, destroy, applyState };
+  DVH.overlay = { decorate, destroy, applyState, updateTrackingStatus };
 })();

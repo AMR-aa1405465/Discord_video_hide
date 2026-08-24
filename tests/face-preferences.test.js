@@ -85,7 +85,8 @@ test("adaptive profile escalates per person and resets only after ten stable min
     lastUnstableAt: 0,
     lastAdaptedAt: 0,
     movementEvents: 0,
-    occlusionEvents: 0
+    occlusionEvents: 0,
+    lastReason: ""
   });
 
   fixture.state.noteFaceInstability("id:2", "movement", start);
@@ -97,13 +98,15 @@ test("adaptive profile escalates per person and resets only after ten stable min
     lastUnstableAt: start,
     lastAdaptedAt: start,
     movementEvents: 1,
-    occlusionEvents: 0
+    occlusionEvents: 0,
+    lastReason: "movement"
   });
 
   fixture.state.noteFaceInstability("id:2", "occlusion", start + 30_000);
   assert.equal(fixture.state.getFaceProfile("id:2").level, 1);
   assert.equal(fixture.state.getFaceProfile("id:2").lastUnstableAt, start + 30_000);
   assert.equal(fixture.state.getFaceProfile("id:2").occlusionEvents, 1);
+  assert.equal(fixture.state.getFaceProfile("id:2").lastReason, "occlusion");
 
   fixture.state.noteFaceInstability("id:2", "occlusion", start + 61_000);
   assert.equal(fixture.state.getFaceProfile("id:2").level, 2);
@@ -113,4 +116,5 @@ test("adaptive profile escalates per person and resets only after ten stable min
   assert.equal(fixture.state.getFaceProfile("id:2").level, 2);
   fixture.state.noteFaceStability("id:2", start + 61_000 + 600_001);
   assert.equal(fixture.state.getFaceProfile("id:2").level, 0);
+  assert.equal(fixture.state.getFaceProfile("id:2").lastReason, "stable");
 });

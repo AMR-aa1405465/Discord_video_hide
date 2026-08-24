@@ -27,6 +27,7 @@
         ? Math.min(80, Math.max(8, source.blurStrength))
         : DEFAULT_SETTINGS.blurStrength,
       buttonVisibility: source.buttonVisibility === "always" ? "always" : DEFAULT_SETTINGS.buttonVisibility,
+      showTrackingStatus: source.showTrackingStatus === true,
       debug: source.debug === true
     };
   }
@@ -53,7 +54,10 @@
       lastUnstableAt: Math.max(0, Number(source.lastUnstableAt) || 0),
       lastAdaptedAt: Math.max(0, Number(source.lastAdaptedAt) || 0),
       movementEvents: Math.max(0, Math.floor(Number(source.movementEvents) || 0)),
-      occlusionEvents: Math.max(0, Math.floor(Number(source.occlusionEvents) || 0))
+      occlusionEvents: Math.max(0, Math.floor(Number(source.occlusionEvents) || 0)),
+      lastReason: source.lastReason === "movement" || source.lastReason === "occlusion" || source.lastReason === "stable"
+        ? source.lastReason
+        : ""
     };
   }
 

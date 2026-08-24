@@ -9,6 +9,7 @@
   const blurValue = document.getElementById("blur-value");
   const blurPreview = document.getElementById("blur-preview");
   const debugInput = document.getElementById("debug");
+  const showTrackingStatusInput = document.getElementById("show-tracking-status");
   const hiddenList = document.getElementById("hidden-list");
   const emptyState = document.getElementById("empty-state");
   const showAll = document.getElementById("show-all");
@@ -63,6 +64,7 @@
     for (const input of visibilityInputs) input.checked = input.value === data.settings.buttonVisibility;
     blurInput.value = String(data.settings.blurStrength);
     debugInput.checked = data.settings.debug;
+    showTrackingStatusInput.checked = data.settings.showTrackingStatus;
     updateBlurUi(data.settings.mode, data.settings.blurStrength);
     renderHidden();
   }
@@ -89,6 +91,12 @@
 
   debugInput.addEventListener("change", () => {
     DVH.storage.saveSettings({ debug: debugInput.checked }).catch(() => {});
+  });
+
+  showTrackingStatusInput.addEventListener("change", () => {
+    DVH.storage.saveSettings({ showTrackingStatus: showTrackingStatusInput.checked })
+      .then(() => announce(showTrackingStatusInput.checked ? "Tracking updates shown" : "Tracking updates hidden"))
+      .catch(() => announce("Could not update setting"));
   });
 
   showAll.addEventListener("click", async () => {

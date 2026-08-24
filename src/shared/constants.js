@@ -14,6 +14,7 @@
       mode: "blur",
       blurStrength: 40,
       buttonVisibility: "hover",
+      showTrackingStatus: false,
       debug: false
     }),
     FACE_PROFILE_LEVELS: Object.freeze([

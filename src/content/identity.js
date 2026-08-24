@@ -5,6 +5,11 @@
   const SNOWFLAKE = /^\d{17,20}$/;
   const AVATAR_RE = /\/avatars\/(\d{17,20})\//;
   const NAME_HINTS = ["nameTag", "nameplate", "username", "name_", "usernameText"];
+  const SELF_PANEL_SELECTOR = [
+    '[class*="panels_"]',
+    '[class*="panels-"]',
+    '[aria-label*="user area" i]'
+  ].join(",");
   // Chrome / status strings that live inside a tile and are NOT the username.
   const STOPWORDS = new Set([
     "live", "muted", "deafened", "speaking", "you", "screen", "stream",
@@ -23,7 +28,7 @@
     const out = [];
     for (const element of tile.querySelectorAll("*")) {
       if (element.children && element.children.length > 0) continue;
-      if (element.closest(".dvh-overlay, .dvh-btn")) continue;   // never read our own UI
+      if (element.closest(".dvh-overlay, .dvh-btn, .dvh-tracking-status")) continue;   // never read our own UI
       const text = (element.textContent || "").trim();
       if (!text) continue;
       const cls = typeof element.className === "string" ? element.className : "";
@@ -115,5 +120,71 @@
     return null;
   }
 
-  DVH.identity = { STRATEGIES, resolveIdentity, isPlausibleName, labelFor };
+  function normalizedLabel(value) {
+    return String(value || "")
+      .replace(/\s*(?:[,·-]\s*)?(?:[([{]\s*)?(?:you|أنت)(?:\s*[)\]}])?\s*$/i, "")
+      .trim()
+      .toLocaleLowerCase();
+  }
+
+  function resolveCurrentUser() {
+    if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return null;
+    const candidates = [...document.querySelectorAll(SELF_PANEL_SELECTOR)];
+
+    for (const candidate of candidates) {
+      for (const image of candidate.querySelectorAll("img[src]")) {
+        const source = image.getAttribute("src") || "";
+        const match = source.match(AVATAR_RE);
+        if (!match) continue;
+        const label = labelFor(candidate, image.getAttribute("alt") || match[1]);
+        return {
+          key: `id:${match[1]}`,
+          label,
+          normalizedLabel: normalizedLabel(label),
+          strength: "strong"
+        };
+      }
+    }
+
+    for (const candidate of candidates) {
+      const label = labelFor(candidate, "");
+      if (!isPlausibleName(label)) continue;
+      return {
+        key: `name:${normalizedLabel(label)}`,
+        label,
+        normalizedLabel: normalizedLabel(label),
+        strength: "weak"
+      };
+    }
+    return null;
+  }
+
+  function isCurrentUser(identity, currentUser) {
+    if (!identity || !currentUser) return false;
+    if (identity.key && currentUser.key && identity.key === currentUser.key) return true;
+    const identityLabel = normalizedLabel(identity.label);
+    const currentLabel = currentUser.normalizedLabel || normalizedLabel(currentUser.label);
+    return Boolean(identityLabel && currentLabel && identityLabel === currentLabel);
+  }
+
+  function tileRepresentsCurrentUser(tile) {
+    if (!tile || typeof tile.querySelectorAll !== "function") return false;
+    const nodes = [tile, ...tile.querySelectorAll("*")];
+    return nodes.some((node) => {
+      if (node.children && node.children.length > 0) return false;
+      const text = String(node.textContent || "").trim();
+      return /^\(?(?:you|أنت)\)?$/i.test(text) || /(?:\(you\)|\(أنت\))$/i.test(text);
+    });
+  }
+
+  DVH.identity = {
+    STRATEGIES,
+    resolveIdentity,
+    resolveCurrentUser,
+    isCurrentUser,
+    tileRepresentsCurrentUser,
+    isPlausibleName,
+    labelFor,
+    normalizedLabel
+  };
 })();

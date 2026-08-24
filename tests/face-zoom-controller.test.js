@@ -134,9 +134,9 @@ test("controller recognizes fast movement and accepts a wider adaptive profile",
   const controller = window.__DVH__.faceZoomController;
   const ratio = controller.movementRatio(
     { x: 100, y: 100, width: 100, height: 100 },
-    { x: 130, y: 100, width: 100, height: 100 }
+    { x: 140, y: 100, width: 100, height: 100 }
   );
-  assert.ok(ratio > 0.18);
+  assert.ok(ratio > 0.35);
 
   controller.start(record, { level: 0, padding: 1.3, lostTimeoutMs: 2500, maxOcclusionMs: 5000 });
   controller.start(record, { level: 2, padding: 1.65, lostTimeoutMs: 5000, maxOcclusionMs: 10000 });
@@ -144,4 +144,66 @@ test("controller recognizes fast movement and accepts a wider adaptive profile",
   assert.equal(record.faceZoomSession.profile.padding, 1.65);
   assert.equal(record.faceZoomSession.profile.maxOcclusionMs, 10000);
   controller.stop(record);
+});
+
+test("one large movement does not adapt; three large movements in a burst do", async () => {
+  const callbacks = [];
+  const instability = [];
+  const detections = [
+    { x: 100, y: 100, width: 100, height: 100 },
+    { x: 145, y: 100, width: 100, height: 100 },
+    { x: 100, y: 100, width: 100, height: 100 },
+    { x: 145, y: 100, width: 100, height: 100 }
+  ];
+  const video = {
+    readyState: 4,
+    videoWidth: 640,
+    videoHeight: 480,
+    requestVideoFrameCallback(callback) {
+      callbacks.push(callback);
+      return callbacks.length;
+    },
+    cancelVideoFrameCallback() {}
+  };
+  const record = {
+    key: "id:mover",
+    tileEl: { getBoundingClientRect: () => ({ width: 320, height: 240 }) },
+    videoEl: video,
+    canvasEl: { hidden: false, getContext: () => null }
+  };
+  const window = {
+    devicePixelRatio: 1,
+    __DVH__: {
+      faceDetector: { detect: async () => detections.shift() || null },
+      state: {
+        noteFaceInstability(key, reason) { instability.push([key, reason]); },
+        noteFaceStability() {}
+      }
+    }
+  };
+  const context = vm.createContext({
+    window,
+    Math,
+    Number,
+    Object,
+    Promise,
+    Date,
+    requestAnimationFrame: () => 1,
+    cancelAnimationFrame() {}
+  });
+  for (const file of ["src/content/face-zoom.js", "src/content/face-zoom-controller.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context);
+  }
+
+  window.__DVH__.faceZoomController.start(record);
+  for (const now of [100, 300, 500]) {
+    callbacks.at(-1)(now);
+    await flushPromises();
+  }
+  assert.deepEqual(instability, []);
+
+  callbacks.at(-1)(700);
+  await flushPromises();
+  assert.deepEqual(instability, [["id:mover", "movement"]]);
+  window.__DVH__.faceZoomController.stop(record);
 });

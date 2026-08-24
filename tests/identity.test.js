@@ -77,3 +77,28 @@ test("default avatar falls back to a weak name identity", () => {
 test("empty tile has no identity", () => {
   assert.equal(loadIdentity().resolveIdentity(new Element()), null);
 });
+
+test("current user matches by Discord id and falls back to normalized username", () => {
+  const api = loadIdentity();
+  assert.equal(api.isCurrentUser(
+    { key: "id:123456789012345678", label: "Different display name" },
+    { key: "id:123456789012345678", label: "Ahmed" }
+  ), true);
+  assert.equal(api.isCurrentUser(
+    { key: "name:ahmed", label: "Ahmed (You)" },
+    { key: "id:123456789012345678", label: "Ahmed", normalizedLabel: "ahmed" }
+  ), true);
+  assert.equal(api.isCurrentUser(
+    { key: "id:999999999999999999", label: "Mona" },
+    { key: "id:123456789012345678", label: "Ahmed", normalizedLabel: "ahmed" }
+  ), false);
+});
+
+test("a tile explicitly labeled You is recognized as the current user", () => {
+  const api = loadIdentity();
+  const tile = new Element({ children: [
+    new Element({ text: "Ahmed" }),
+    new Element({ text: "(You)" })
+  ] });
+  assert.equal(api.tileRepresentsCurrentUser(tile), true);
+});

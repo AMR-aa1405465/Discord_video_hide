@@ -20,6 +20,7 @@
     try {
       const settings = DVH.state.getSettings();
       const tiles = DVH.tileFinder.findVideoTiles();
+      const currentUser = DVH.identity.resolveCurrentUser();
       // Two different tiles must never resolve to the same key -- that is exactly
       // what makes one click hide every participant. Detect it and isolate.
       const keysThisPass = new Map();
@@ -62,7 +63,10 @@
             faceAction: DVH.state.getFaceAction(identity.key),
             faceProfile: DVH.state.getFaceProfile(identity.key),
             blurStrength: settings.blurStrength,
-            buttonVisibility: settings.buttonVisibility
+            buttonVisibility: settings.buttonVisibility,
+            showTrackingStatus: settings.showTrackingStatus,
+            isCurrentUser: DVH.identity.isCurrentUser(identity, currentUser) ||
+              DVH.identity.tileRepresentsCurrentUser(tile)
           });
         } catch (error) {
           if (settings.debug) console.debug("[DVH] tile reconciliation failed", error, tile);

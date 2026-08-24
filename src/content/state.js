@@ -99,7 +99,10 @@
       lastUnstableAt: Math.max(0, Number(current.lastUnstableAt) || 0),
       lastAdaptedAt: Math.max(0, Number(current.lastAdaptedAt) || 0),
       movementEvents: Math.max(0, Math.floor(Number(current.movementEvents) || 0)),
-      occlusionEvents: Math.max(0, Math.floor(Number(current.occlusionEvents) || 0))
+      occlusionEvents: Math.max(0, Math.floor(Number(current.occlusionEvents) || 0)),
+      lastReason: current.lastReason === "movement" || current.lastReason === "occlusion" || current.lastReason === "stable"
+        ? current.lastReason
+        : ""
     };
   }
 
@@ -119,6 +122,7 @@
     const mayEscalate = current.lastAdaptedAt <= 0 || timestamp - current.lastAdaptedAt >= 60000;
     const next = profileAtLevel(mayEscalate ? current.level + 1 : current.level, current);
     next.lastUnstableAt = timestamp;
+    next.lastReason = reason;
     if (mayEscalate) next.lastAdaptedAt = timestamp;
     if (reason === "movement") next.movementEvents += 1;
     else next.occlusionEvents += 1;
@@ -134,6 +138,7 @@
     const timestamp = Number.isFinite(now) ? now : Date.now();
     if (timestamp - current.lastUnstableAt < 600000) return;
     const next = profileAtLevel(0, current);
+    next.lastReason = "stable";
     state.faceProfiles.set(key, next);
     saveFaceProfiles();
     emit();

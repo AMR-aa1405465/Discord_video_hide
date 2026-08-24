@@ -171,3 +171,29 @@ footer label {
 input {
   accent-color: #5865f2;
 }
+
+.dvh-status-option label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.dvh-status-option input {
+  margin-top: 2px;
+}
+
+.dvh-status-option span {
+  display: grid;
+  gap: 3px;
+}
+
+.dvh-status-option strong {
+  color: #f2f3f5;
+  font-size: 13px;
+}
+
+.dvh-status-option small {
+  color: #949ba4;
+  font-size: 11px;
+  line-height: 1.35;
+}

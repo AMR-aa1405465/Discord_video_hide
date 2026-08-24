@@ -6,8 +6,10 @@
   const FLOW_INTERVAL_MS = 100;
   const REQUIRED_DETECTIONS = 3;
   const MAX_PIXEL_RATIO = 1.5;
-  const MOVEMENT_THRESHOLD = 0.18;
-  const OCCLUSION_MISS_THRESHOLD = 5;
+  const MOVEMENT_THRESHOLD = 0.35;
+  const MOVEMENT_EVENTS_REQUIRED = 3;
+  const MOVEMENT_WINDOW_MS = 8000;
+  const OCCLUSION_MISS_THRESHOLD = 12;
   const DEFAULT_PROFILE = {
     level: 0,
     padding: 1.3,
@@ -77,17 +79,25 @@
     };
   }
 
-  function clearTracking(record, session) {
+  function reportRuntime(record, phase) {
+    if (DVH.overlay && typeof DVH.overlay.updateTrackingStatus === "function") {
+      DVH.overlay.updateTrackingStatus(record, { phase });
+    }
+  }
+
+  function clearTracking(record, session, phase) {
     session.state = DVH.faceZoom.createSafetyState();
     session.crop = null;
     session.targetCrop = null;
     session.kalman = null;
     session.lastFaceAt = null;
     session.lastDetectedFace = null;
+    session.largeMovementTimes = [];
     session.consecutiveMisses = 0;
     session.occlusionReported = false;
     if (session.motionTracker) session.motionTracker.reset();
     hideCanvas(record);
+    reportRuntime(record, phase || "fallback");
   }
 
   function draw(record, session) {
@@ -150,8 +160,14 @@
       lostTimeoutMs: session.profile.lostTimeoutMs
     });
     if (face) {
-      if (movementRatio(session.lastDetectedFace, face) >= MOVEMENT_THRESHOLD) {
-        reportInstability(record, "movement");
+      const movement = movementRatio(session.lastDetectedFace, face);
+      session.largeMovementTimes = session.largeMovementTimes.filter((time) => now - time <= MOVEMENT_WINDOW_MS);
+      if (movement >= MOVEMENT_THRESHOLD) {
+        session.largeMovementTimes.push(now);
+        if (session.largeMovementTimes.length >= MOVEMENT_EVENTS_REQUIRED) {
+          reportInstability(record, "movement");
+          session.largeMovementTimes = [];
+        }
       }
       session.lastDetectedFace = { ...face };
       session.consecutiveMisses = 0;
@@ -177,13 +193,15 @@
         session.targetCrop = stableCrop;
       }
       if (!session.crop) session.crop = { ...session.targetCrop };
+      reportRuntime(record, session.state.phase === "tracking" ? "tracking" : "starting");
     } else {
       session.consecutiveMisses += 1;
       if (!session.occlusionReported && session.consecutiveMisses >= OCCLUSION_MISS_THRESHOLD) {
         session.occlusionReported = true;
         reportInstability(record, "occlusion");
       }
-      if (session.state.phase === "full") clearTracking(record, session);
+      if (session.state.phase === "full") clearTracking(record, session, "fallback");
+      else reportRuntime(record, "holding");
     }
   }
 
@@ -198,7 +216,7 @@
     const flow = session.motionTracker.sample(record.videoEl, occluded ? reference : null);
     if (!active || !session.kalman || session.lastFaceAt === null) return;
     if (now - session.lastFaceAt > session.profile.maxOcclusionMs) {
-      clearTracking(record, session);
+      clearTracking(record, session, "fallback");
       return;
     }
 
@@ -212,11 +230,13 @@
         tracked: true,
         lostTimeoutMs: session.profile.lostTimeoutMs
       });
+      reportRuntime(record, "motion");
     } else if (occluded && session.state.phase === "holding") {
       session.targetCrop = clampCrop(
         DVH.faceMotion.predictBoxKalman(session.kalman, now),
         record.videoEl
       );
+      reportRuntime(record, "holding");
     }
   }
 
@@ -239,6 +259,7 @@
     if (!record || !record.videoEl || !record.canvasEl) return;
     if (record.faceZoomSession) {
       record.faceZoomSession.profile = normalizeProfile(profile);
+      reportRuntime(record, record.faceZoomSession.state.phase === "tracking" ? "tracking" : "starting");
       return;
     }
     hideCanvas(record);
@@ -257,6 +278,7 @@
       lastFlowAt: -Infinity,
       lastFaceAt: null,
       lastDetectedFace: null,
+      largeMovementTimes: [],
       consecutiveMisses: 0,
       occlusionReported: false,
       crop: null,
@@ -267,6 +289,7 @@
       state: DVH.faceZoom.createSafetyState()
     };
     record.faceZoomSession = session;
+    reportRuntime(record, "starting");
     schedule(record, session);
   }
 

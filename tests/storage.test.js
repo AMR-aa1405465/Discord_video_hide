@@ -33,7 +33,7 @@ test("load returns defaults for empty storage", async () => {
   const { api } = createStorage();
   assert.deepEqual(structuredClone(await api.load()), {
     hidden: [],
-    settings: { mode: "blur", blurStrength: 40, buttonVisibility: "hover", debug: false },
+    settings: { mode: "blur", blurStrength: 40, buttonVisibility: "hover", showTrackingStatus: false, debug: false },
     faceActions: {},
     faceProfiles: {}
   });
@@ -43,13 +43,19 @@ test("load sanitizes damaged values", async () => {
   const { api } = createStorage({ "dvh.hiddenUsers": "bad", "dvh.settings": { mode: "wat", blurStrength: 900 } });
   const result = structuredClone(await api.load());
   assert.deepEqual(result.hidden, []);
-  assert.deepEqual(result.settings, { mode: "blur", blurStrength: 80, buttonVisibility: "hover", debug: false });
+  assert.deepEqual(result.settings, { mode: "blur", blurStrength: 80, buttonVisibility: "hover", showTrackingStatus: false, debug: false });
 });
 
 test("load preserves the face-only mode", async () => {
   const { api } = createStorage({ "dvh.settings": { mode: "face" } });
   const result = structuredClone(await api.load());
   assert.equal(result.settings.mode, "face");
+});
+
+test("load preserves the tracking-status toggle", async () => {
+  const { api } = createStorage({ "dvh.settings": { showTrackingStatus: true } });
+  const result = structuredClone(await api.load());
+  assert.equal(result.settings.showTrackingStatus, true);
 });
 
 test("debounced hidden save persists object metadata", async () => {
