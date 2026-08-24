@@ -23,7 +23,7 @@
   }
 
   function updateBlurUi(mode, strength) {
-    const disabled = mode === "black";
+    const disabled = mode !== "blur";
     blurInput.disabled = disabled;
     blurSection.classList.toggle("dvh-is-disabled", disabled);
     blurValue.value = `${strength} px`;

@@ -26,6 +26,21 @@
   background: #000;
 }
 
+.dvh-overlay[data-mode="face"] {
+  overflow: hidden;
+  background: transparent;
+}
+
+.dvh-face-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.dvh-face-canvas[hidden] {
+  display: none;
+}
+
 .dvh-overlay.dvh-fallback {
   background: rgba(0, 0, 0, 0.96);
 }
@@ -54,6 +69,10 @@
   width: 100%;
   height: 100%;
   fill: currentColor;
+}
+
+.dvh-btn.dvh-btn--face-auto {
+  display: none;
 }
 
 .dvh-root:hover > .dvh-btn,

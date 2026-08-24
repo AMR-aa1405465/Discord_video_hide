@@ -22,7 +22,7 @@
   function validSettings(value) {
     const source = value && typeof value === "object" ? value : {};
     return {
-      mode: source.mode === "black" ? "black" : DEFAULT_SETTINGS.mode,
+      mode: source.mode === "black" || source.mode === "face" ? source.mode : DEFAULT_SETTINGS.mode,
       blurStrength: Number.isFinite(source.blurStrength)
         ? Math.min(80, Math.max(8, source.blurStrength))
         : DEFAULT_SETTINGS.blurStrength,

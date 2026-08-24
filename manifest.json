@@ -1,9 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Discord Video Hide",
-  "version": "1.0.0",
-  "description": "Toggle a blur/blackout overlay on any participant's video in a Discord voice call.",
+  "version": "1.2.0",
+  "description": "Toggle blur, blackout, or locally tracked face-only mode for Discord call videos.",
   "permissions": ["storage"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
   "host_permissions": [
     "https://discord.com/*",
     "https://ptb.discord.com/*",
@@ -14,6 +17,19 @@
     "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
   },
   "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "vendor/mediapipe/wasm/*",
+        "vendor/mediapipe/models/*"
+      ],
+      "matches": [
+        "https://discord.com/*",
+        "https://ptb.discord.com/*",
+        "https://canary.discord.com/*"
+      ]
+    }
+  ],
   "content_scripts": [
     {
       "matches": [
@@ -22,11 +38,17 @@
         "https://canary.discord.com/*"
       ],
       "js": [
+        "vendor/mediapipe/wasm/vision_wasm_internal.js",
+        "vendor/mediapipe/vision_bundle.js",
         "src/shared/constants.js",
         "src/shared/storage.js",
         "src/content/state.js",
         "src/content/identity.js",
         "src/content/tile-finder.js",
+        "src/content/face-zoom.js",
+        "src/content/face-motion.js",
+        "src/content/face-detector.js",
+        "src/content/face-zoom-controller.js",
         "src/content/overlay.js",
         "src/content/registry.js",
         "src/content/reconciler.js",

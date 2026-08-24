@@ -50,3 +50,31 @@ test("a repeated applyState is a DOM no-op", () => {
   window.__DVH__.overlay.applyState(tile, record, { hidden: true, mode: "blur", blurStrength: 40, buttonVisibility: "hover" });
   assert.equal(counter.count, 0);
 });
+
+test("face-only mode starts tracking and leaving it stops tracking", () => {
+  const counter = { count: 0 };
+  const calls = [];
+  const registry = new WeakMap();
+  const window = {
+    __DVH__: {
+      constants: { CLS: { ROOT: "dvh-root", HIDDEN: "dvh-hidden", OVERLAY: "dvh-overlay", BTN: "dvh-btn", BTN_ON: "dvh-btn--on", FALLBACK: "dvh-fallback" } },
+      registry: { set: (tile, record) => registry.set(tile, record), delete: (tile) => registry.delete(tile) },
+      state: { toggle() {} },
+      faceZoomController: {
+        start(record) { calls.push(["start", record.key]); },
+        stop(record) { calls.push(["stop", record.key]); }
+      }
+    }
+  };
+  const document = { createElement: () => trackedNode(counter) };
+  const context = vm.createContext({ window, document, getComputedStyle: () => ({ position: "static" }), CSS: { supports: () => true } });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/content/overlay.js"), "utf8"), context);
+  const tile = trackedNode(counter);
+  const video = { videoWidth: 1280, videoHeight: 720 };
+  const record = window.__DVH__.overlay.decorate(tile, { key: "id:2", label: "B", strength: "strong" }, video);
+
+  window.__DVH__.overlay.applyState(tile, record, { hidden: false, mode: "face", blurStrength: 40, buttonVisibility: "hover" });
+  window.__DVH__.overlay.applyState(tile, record, { hidden: false, mode: "black", blurStrength: 40, buttonVisibility: "hover" });
+
+  assert.deepEqual(calls, [["start", "id:2"], ["stop", "id:2"]]);
+});

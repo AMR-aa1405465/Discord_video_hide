@@ -26,6 +26,8 @@
 
       tiles.forEach((tile, index) => {
         try {
+          const video = tile.querySelector("video");
+          if (!video) return;
           let identity = DVH.identity.resolveIdentity(tile);
           if (!identity) return;
 
@@ -48,11 +50,11 @@
           keysThisPass.set(identity.key, tile);
 
           let record = DVH.registry.get(tile);
-          if (record && record.key !== identity.key) {
+          if (record && (record.key !== identity.key || record.videoEl !== video)) {
             DVH.overlay.destroy(tile, record);
             record = null;
           }
-          if (!record) record = DVH.overlay.decorate(tile, identity);
+          if (!record) record = DVH.overlay.decorate(tile, identity, video);
 
           DVH.overlay.applyState(tile, record, {
             hidden: DVH.state.isHidden(identity.key),

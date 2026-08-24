@@ -19,6 +19,10 @@ class Element {
     return this.attrs[name] || null;
   }
 
+  closest() {
+    return null;
+  }
+
   descendants() {
     return this.children.flatMap((child) => [child, ...child.descendants()]);
   }

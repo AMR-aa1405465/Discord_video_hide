@@ -44,6 +44,12 @@ test("load sanitizes damaged values", async () => {
   assert.deepEqual(result.settings, { mode: "blur", blurStrength: 80, buttonVisibility: "hover", debug: false });
 });
 
+test("load preserves the face-only mode", async () => {
+  const { api } = createStorage({ "dvh.settings": { mode: "face" } });
+  const result = structuredClone(await api.load());
+  assert.equal(result.settings.mode, "face");
+});
+
 test("debounced hidden save persists object metadata", async () => {
   const { api, values } = createStorage();
   const item = { key: "id:1", label: "x", strength: "strong", addedAt: 123 };
