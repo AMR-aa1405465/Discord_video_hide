@@ -33,7 +33,9 @@ test("load returns defaults for empty storage", async () => {
   const { api } = createStorage();
   assert.deepEqual(structuredClone(await api.load()), {
     hidden: [],
-    settings: { mode: "blur", blurStrength: 40, buttonVisibility: "hover", debug: false }
+    settings: { mode: "blur", blurStrength: 40, buttonVisibility: "hover", debug: false },
+    faceActions: {},
+    faceProfiles: {}
   });
 });
 

@@ -59,6 +59,8 @@
           DVH.overlay.applyState(tile, record, {
             hidden: DVH.state.isHidden(identity.key),
             mode: settings.mode,
+            faceAction: DVH.state.getFaceAction(identity.key),
+            faceProfile: DVH.state.getFaceProfile(identity.key),
             blurStrength: settings.blurStrength,
             buttonVisibility: settings.buttonVisibility
           });

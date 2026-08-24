@@ -102,3 +102,46 @@ test("controller uses a tight crop, holds brief misses, then returns to full vid
   assert.equal(record.faceZoomSession, null);
   assert.equal(canvas.hidden, true);
 });
+
+test("controller recognizes fast movement and accepts a wider adaptive profile", () => {
+  const callbacks = [];
+  const record = {
+    key: "id:adaptive",
+    tileEl: { getBoundingClientRect: () => ({ width: 400, height: 300 }) },
+    videoEl: {
+      requestVideoFrameCallback(callback) {
+        callbacks.push(callback);
+        return callbacks.length;
+      },
+      cancelVideoFrameCallback() {}
+    },
+    canvasEl: { hidden: false }
+  };
+  const window = { __DVH__: { faceDetector: { detect: async () => null } } };
+  const context = vm.createContext({
+    window,
+    Math,
+    Number,
+    Object,
+    Promise,
+    requestAnimationFrame: () => 1,
+    cancelAnimationFrame() {}
+  });
+  for (const file of ["src/content/face-zoom.js", "src/content/face-zoom-controller.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context);
+  }
+
+  const controller = window.__DVH__.faceZoomController;
+  const ratio = controller.movementRatio(
+    { x: 100, y: 100, width: 100, height: 100 },
+    { x: 130, y: 100, width: 100, height: 100 }
+  );
+  assert.ok(ratio > 0.18);
+
+  controller.start(record, { level: 0, padding: 1.3, lostTimeoutMs: 2500, maxOcclusionMs: 5000 });
+  controller.start(record, { level: 2, padding: 1.65, lostTimeoutMs: 5000, maxOcclusionMs: 10000 });
+  assert.equal(record.faceZoomSession.profile.level, 2);
+  assert.equal(record.faceZoomSession.profile.padding, 1.65);
+  assert.equal(record.faceZoomSession.profile.maxOcclusionMs, 10000);
+  controller.stop(record);
+});

@@ -4,10 +4,52 @@
   const DVH = (window.__DVH__ = window.__DVH__ || {});
   const DETECTION_INTERVAL_MS = 160;
   const FLOW_INTERVAL_MS = 100;
-  const LOST_TIMEOUT_MS = 2500;
-  const MAX_OCCLUSION_MS = 5000;
   const REQUIRED_DETECTIONS = 3;
   const MAX_PIXEL_RATIO = 1.5;
+  const MOVEMENT_THRESHOLD = 0.18;
+  const OCCLUSION_MISS_THRESHOLD = 5;
+  const DEFAULT_PROFILE = {
+    level: 0,
+    padding: 1.3,
+    lostTimeoutMs: 2500,
+    maxOcclusionMs: 5000
+  };
+
+  function normalizeProfile(profile) {
+    const source = profile || {};
+    return {
+      level: Math.max(0, Math.floor(Number(source.level) || 0)),
+      padding: Number.isFinite(source.padding) ? source.padding : DEFAULT_PROFILE.padding,
+      lostTimeoutMs: Number.isFinite(source.lostTimeoutMs)
+        ? source.lostTimeoutMs
+        : DEFAULT_PROFILE.lostTimeoutMs,
+      maxOcclusionMs: Number.isFinite(source.maxOcclusionMs)
+        ? source.maxOcclusionMs
+        : DEFAULT_PROFILE.maxOcclusionMs
+    };
+  }
+
+  function movementRatio(previous, next) {
+    if (!previous || !next) return 0;
+    const previousX = previous.x + previous.width / 2;
+    const previousY = previous.y + previous.height / 2;
+    const nextX = next.x + next.width / 2;
+    const nextY = next.y + next.height / 2;
+    const scale = Math.max(1, previous.width, previous.height);
+    return Math.hypot(nextX - previousX, nextY - previousY) / scale;
+  }
+
+  function reportInstability(record, reason) {
+    if (DVH.state && typeof DVH.state.noteFaceInstability === "function") {
+      DVH.state.noteFaceInstability(record.key, reason, Date.now());
+    }
+  }
+
+  function reportStability(record) {
+    if (DVH.state && typeof DVH.state.noteFaceStability === "function") {
+      DVH.state.noteFaceStability(record.key, Date.now());
+    }
+  }
 
   function hideCanvas(record) {
     if (!record || !record.canvasEl) return;
@@ -41,6 +83,9 @@
     session.targetCrop = null;
     session.kalman = null;
     session.lastFaceAt = null;
+    session.lastDetectedFace = null;
+    session.consecutiveMisses = 0;
+    session.occlusionReported = false;
     if (session.motionTracker) session.motionTracker.reset();
     hideCanvas(record);
   }
@@ -102,16 +147,23 @@
       now,
       detected: Boolean(face),
       requiredDetections: REQUIRED_DETECTIONS,
-      lostTimeoutMs: LOST_TIMEOUT_MS
+      lostTimeoutMs: session.profile.lostTimeoutMs
     });
     if (face) {
+      if (movementRatio(session.lastDetectedFace, face) >= MOVEMENT_THRESHOLD) {
+        reportInstability(record, "movement");
+      }
+      session.lastDetectedFace = { ...face };
+      session.consecutiveMisses = 0;
+      session.occlusionReported = false;
+      reportStability(record);
       const rect = record.tileEl.getBoundingClientRect();
       const nextCrop = DVH.faceZoom.computeCrop(face, {
         sourceWidth: record.videoEl.videoWidth,
         sourceHeight: record.videoEl.videoHeight,
         targetWidth: Math.max(1, rect.width),
         targetHeight: Math.max(1, rect.height),
-        padding: 1.3
+        padding: session.profile.padding
       });
       const stableCrop = DVH.faceZoom.stabilizeCrop(session.targetCrop, nextCrop);
       session.lastFaceAt = now;
@@ -125,8 +177,13 @@
         session.targetCrop = stableCrop;
       }
       if (!session.crop) session.crop = { ...session.targetCrop };
-    } else if (session.state.phase === "full") {
-      clearTracking(record, session);
+    } else {
+      session.consecutiveMisses += 1;
+      if (!session.occlusionReported && session.consecutiveMisses >= OCCLUSION_MISS_THRESHOLD) {
+        session.occlusionReported = true;
+        reportInstability(record, "occlusion");
+      }
+      if (session.state.phase === "full") clearTracking(record, session);
     }
   }
 
@@ -140,7 +197,7 @@
     // but skips expensive patch matching while BlazeFace is succeeding.
     const flow = session.motionTracker.sample(record.videoEl, occluded ? reference : null);
     if (!active || !session.kalman || session.lastFaceAt === null) return;
-    if (now - session.lastFaceAt > MAX_OCCLUSION_MS) {
+    if (now - session.lastFaceAt > session.profile.maxOcclusionMs) {
       clearTracking(record, session);
       return;
     }
@@ -153,7 +210,7 @@
       session.state = DVH.faceZoom.updateSafetyState(session.state, {
         now,
         tracked: true,
-        lostTimeoutMs: LOST_TIMEOUT_MS
+        lostTimeoutMs: session.profile.lostTimeoutMs
       });
     } else if (occluded && session.state.phase === "holding") {
       session.targetCrop = clampCrop(
@@ -178,8 +235,12 @@
     schedule(record, session);
   }
 
-  function start(record) {
-    if (!record || !record.videoEl || !record.canvasEl || record.faceZoomSession) return;
+  function start(record, profile) {
+    if (!record || !record.videoEl || !record.canvasEl) return;
+    if (record.faceZoomSession) {
+      record.faceZoomSession.profile = normalizeProfile(profile);
+      return;
+    }
     hideCanvas(record);
     let motionTracker = null;
     try {
@@ -195,10 +256,14 @@
       lastDetectionAt: -Infinity,
       lastFlowAt: -Infinity,
       lastFaceAt: null,
+      lastDetectedFace: null,
+      consecutiveMisses: 0,
+      occlusionReported: false,
       crop: null,
       targetCrop: null,
       kalman: null,
       motionTracker,
+      profile: normalizeProfile(profile),
       state: DVH.faceZoom.createSafetyState()
     };
     record.faceZoomSession = session;
@@ -223,5 +288,5 @@
     hideCanvas(record);
   }
 
-  DVH.faceZoomController = { start, stop };
+  DVH.faceZoomController = { start, stop, movementRatio };
 })();

@@ -5,6 +5,12 @@
   const { CLS } = DVH.constants;
   const EYE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Zm10 3.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"/></svg>';
   const EYE_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.3 2 18.7 18.7-1.3 1.3-3.2-3.2A11.8 11.8 0 0 1 12 20C5.5 20 2 14 2 14a18 18 0 0 1 3.3-4.2L2 6.3 3.3 5l18.7 18.7-1.3 1.3L3.3 7.3V2Zm5 10.8A3.8 3.8 0 0 0 13.2 17l-4.9-4.2ZM12 8c6.5 0 10 6 10 6a17 17 0 0 1-2.2 3.1l-2.7-2.7V14A5.1 5.1 0 0 0 10 9.2L8.4 7.9A12 12 0 0 1 12 8Z"/></svg>';
+  const BLACKOUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/></svg>';
+
+  function stopPointerEvent(event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
 
   function decorate(tile, identity, video) {
     const overlayEl = document.createElement("div");
@@ -23,6 +29,13 @@
     btnEl.title = "Hide video";
     btnEl.innerHTML = EYE_OFF;
 
+    const blackBtnEl = document.createElement("button");
+    blackBtnEl.className = `${CLS.BTN} dvh-btn--blackout`;
+    blackBtnEl.type = "button";
+    blackBtnEl.setAttribute("aria-pressed", "false");
+    blackBtnEl.title = "Blackout entire video";
+    blackBtnEl.innerHTML = BLACKOUT;
+
     const record = {
       key: identity.key,
       identity,
@@ -31,28 +44,33 @@
       overlayEl,
       canvasEl,
       btnEl,
+      blackBtnEl,
       rootAdded: false,
       appliedHidden: null,
       appliedMode: null,
+      appliedFaceAction: null,
+      appliedFaceProfile: null,
       appliedStrength: null,
       appliedButtonVisibility: null
     };
 
-    btnEl.addEventListener("pointerdown", (event) => {
-      event.stopPropagation();
-      event.preventDefault();
-    });
+    btnEl.addEventListener("pointerdown", stopPointerEvent);
     btnEl.addEventListener("click", (event) => {
-      event.stopPropagation();
-      event.preventDefault();
-      DVH.state.toggle(record.key, record.identity);
+      stopPointerEvent(event);
+      if (record.appliedMode === "face") DVH.state.toggleFaceTracking(record.key);
+      else DVH.state.toggle(record.key, record.identity);
+    });
+    blackBtnEl.addEventListener("pointerdown", stopPointerEvent);
+    blackBtnEl.addEventListener("click", (event) => {
+      stopPointerEvent(event);
+      DVH.state.toggleFaceBlackout(record.key);
     });
 
     if (getComputedStyle(tile).position === "static") {
       tile.classList.add(CLS.ROOT);
       record.rootAdded = true;
     }
-    tile.append(overlayEl, btnEl);
+    tile.append(overlayEl, btnEl, blackBtnEl);
     DVH.registry.set(tile, record);
     return record;
   }
@@ -61,18 +79,31 @@
     if (DVH.faceZoomController) DVH.faceZoomController.stop(record);
     record.overlayEl.remove();
     record.btnEl.remove();
+    record.blackBtnEl.remove();
     if (record.rootAdded) tile.classList.remove(CLS.ROOT);
     DVH.registry.delete(tile);
   }
 
   function applyState(_tile, record, options) {
     const mode = options.mode === "black" || options.mode === "face" ? options.mode : "blur";
-    const hidden = mode === "face" || options.hidden === true;
+    const faceAction = options.faceAction === "full" || options.faceAction === "black" ? options.faceAction : "track";
+    const faceProfile = options.faceProfile || {};
+    const faceProfileSignature = [
+      faceProfile.level,
+      faceProfile.padding,
+      faceProfile.lostTimeoutMs,
+      faceProfile.maxOcclusionMs
+    ].join(":");
+    const tracking = mode === "face" && faceAction === "track";
+    const hidden = mode === "face" ? faceAction !== "full" : options.hidden === true;
+    const visualMode = mode === "face" && faceAction === "black" ? "black" : mode;
     const strength = Math.min(80, Math.max(8, Number(options.blurStrength) || 40));
     const buttonVisibility = options.buttonVisibility === "always" ? "always" : "hover";
     if (
       record.appliedHidden === hidden &&
       record.appliedMode === mode &&
+      record.appliedFaceAction === faceAction &&
+      record.appliedFaceProfile === faceProfileSignature &&
       record.appliedStrength === strength &&
       record.appliedButtonVisibility === buttonVisibility
     ) return;
@@ -80,19 +111,32 @@
     record.overlayEl.classList.toggle(CLS.HIDDEN, hidden);
     record.btnEl.classList.toggle(CLS.BTN_ON, hidden);
     record.btnEl.classList.toggle("dvh-btn--always", buttonVisibility === "always");
-    record.btnEl.classList.toggle("dvh-btn--face-auto", mode === "face");
-    record.overlayEl.dataset.mode = mode;
+    record.btnEl.classList.toggle("dvh-btn--face-action", mode === "face");
+    record.blackBtnEl.classList.toggle("dvh-btn--face-action", mode === "face");
+    record.blackBtnEl.classList.toggle(CLS.BTN_ON, faceAction === "black");
+    record.blackBtnEl.classList.toggle("dvh-btn--always", buttonVisibility === "always");
+    record.overlayEl.dataset.mode = visualMode;
     record.overlayEl.style.setProperty("--dvh-blur", `${strength}px`);
     record.overlayEl.classList.toggle(CLS.FALLBACK, mode === "blur" && !CSS.supports("backdrop-filter", "blur(1px)"));
     if (DVH.faceZoomController) {
-      if (hidden && mode === "face") DVH.faceZoomController.start(record);
+      if (tracking) DVH.faceZoomController.start(record, faceProfile);
       else DVH.faceZoomController.stop(record);
     }
-    record.btnEl.setAttribute("aria-pressed", String(hidden));
-    record.btnEl.title = hidden ? "Show video" : "Hide video";
-    record.btnEl.innerHTML = hidden ? EYE : EYE_OFF;
+    if (mode === "face") {
+      record.btnEl.setAttribute("aria-pressed", String(tracking));
+      record.btnEl.title = tracking ? "Show full video for this person" : "Enable face tracking for this person";
+      record.btnEl.innerHTML = tracking ? EYE : EYE_OFF;
+      record.blackBtnEl.setAttribute("aria-pressed", String(faceAction === "black"));
+      record.blackBtnEl.title = faceAction === "black" ? "Remove blackout" : "Blackout entire video";
+    } else {
+      record.btnEl.setAttribute("aria-pressed", String(hidden));
+      record.btnEl.title = hidden ? "Show video" : "Hide video";
+      record.btnEl.innerHTML = hidden ? EYE : EYE_OFF;
+    }
     record.appliedHidden = hidden;
     record.appliedMode = mode;
+    record.appliedFaceAction = faceAction;
+    record.appliedFaceProfile = faceProfileSignature;
     record.appliedStrength = strength;
     record.appliedButtonVisibility = buttonVisibility;
   }

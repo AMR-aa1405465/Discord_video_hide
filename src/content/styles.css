@@ -71,8 +71,13 @@
   fill: currentColor;
 }
 
-.dvh-btn.dvh-btn--face-auto {
+.dvh-btn--blackout {
+  right: 44px;
   display: none;
+}
+
+.dvh-btn--blackout.dvh-btn--face-action {
+  display: grid;
 }
 
 .dvh-root:hover > .dvh-btn,

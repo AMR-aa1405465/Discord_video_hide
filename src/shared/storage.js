@@ -2,7 +2,7 @@
   "use strict";
 
   const DVH = (window.__DVH__ = window.__DVH__ || {});
-  const { STORAGE_KEYS, DEFAULT_SETTINGS } = DVH.constants;
+  const { STORAGE_KEYS, DEFAULT_SETTINGS, FACE_PROFILE_LEVELS } = DVH.constants;
   let hiddenTimer = null;
   let queuedHidden = [];
   let pendingResolvers = [];
@@ -31,15 +31,57 @@
     };
   }
 
+  function validFaceActions(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    const result = {};
+    for (const [key, action] of Object.entries(value)) {
+      if (!key || (action !== "full" && action !== "black" && action !== "track")) continue;
+      if (action !== "track") result[key] = action;
+    }
+    return result;
+  }
+
+  function validFaceProfile(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const level = Math.min(FACE_PROFILE_LEVELS.length - 1, Math.max(0, Math.floor(Number(source.level) || 0)));
+    const tuning = FACE_PROFILE_LEVELS[level];
+    return {
+      level,
+      padding: tuning.padding,
+      lostTimeoutMs: tuning.lostTimeoutMs,
+      maxOcclusionMs: tuning.maxOcclusionMs,
+      lastUnstableAt: Math.max(0, Number(source.lastUnstableAt) || 0),
+      lastAdaptedAt: Math.max(0, Number(source.lastAdaptedAt) || 0),
+      movementEvents: Math.max(0, Math.floor(Number(source.movementEvents) || 0)),
+      occlusionEvents: Math.max(0, Math.floor(Number(source.occlusionEvents) || 0))
+    };
+  }
+
+  function validFaceProfiles(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    const result = {};
+    for (const [key, profile] of Object.entries(value)) {
+      if (key) result[key] = validFaceProfile(profile);
+    }
+    return result;
+  }
+
   async function load() {
     try {
-      const values = await chrome.storage.local.get([STORAGE_KEYS.HIDDEN, STORAGE_KEYS.SETTINGS]);
+      const values = await chrome.storage.local.get([
+        STORAGE_KEYS.HIDDEN,
+        STORAGE_KEYS.SETTINGS,
+        STORAGE_KEYS.FACE_ACTIONS,
+        STORAGE_KEYS.FACE_PROFILES
+      ]);
       return {
         hidden: validHidden(values[STORAGE_KEYS.HIDDEN]),
-        settings: validSettings(values[STORAGE_KEYS.SETTINGS])
+        settings: validSettings(values[STORAGE_KEYS.SETTINGS]),
+        faceActions: validFaceActions(values[STORAGE_KEYS.FACE_ACTIONS]),
+        faceProfiles: validFaceProfiles(values[STORAGE_KEYS.FACE_PROFILES])
       };
     } catch (_error) {
-      return { hidden: [], settings: { ...DEFAULT_SETTINGS } };
+      return { hidden: [], settings: { ...DEFAULT_SETTINGS }, faceActions: {}, faceProfiles: {} };
     }
   }
 
@@ -70,14 +112,31 @@
     return settings;
   }
 
+  async function saveFaceActions(actions) {
+    const value = validFaceActions(actions);
+    await chrome.storage.local.set({ [STORAGE_KEYS.FACE_ACTIONS]: value });
+    return value;
+  }
+
+  async function saveFaceProfiles(profiles) {
+    const value = validFaceProfiles(profiles);
+    await chrome.storage.local.set({ [STORAGE_KEYS.FACE_PROFILES]: value });
+    return value;
+  }
+
   function subscribe(callback) {
     const listener = (changes, areaName) => {
       if (areaName !== "local") return;
-      if (changes[STORAGE_KEYS.HIDDEN] || changes[STORAGE_KEYS.SETTINGS]) callback(changes);
+      if (
+        changes[STORAGE_KEYS.HIDDEN] ||
+        changes[STORAGE_KEYS.SETTINGS] ||
+        changes[STORAGE_KEYS.FACE_ACTIONS] ||
+        changes[STORAGE_KEYS.FACE_PROFILES]
+      ) callback(changes);
     };
     chrome.storage.onChanged.addListener(listener);
     return () => chrome.storage.onChanged.removeListener(listener);
   }
 
-  DVH.storage = { load, saveHidden, saveSettings, subscribe };
+  DVH.storage = { load, saveHidden, saveSettings, saveFaceActions, saveFaceProfiles, subscribe };
 })();
