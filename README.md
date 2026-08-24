@@ -26,6 +26,12 @@ Open the extension popup to choose blur, full black, or face-only mode. Face-onl
 
 Turn on **Show tracking updates** in the popup to briefly display each participant's live face-tracking state. The status text appears when enabled and whenever something changes, then fades after six seconds. It reports when the extension is acquiring or tracking a face, following motion through an occlusion, or falling back to the full video. It also shows the participant's current crop padding and lost-face/occlusion timeouts.
 
+Face tracking waits for three stable detections before showing a crop. The crop follows the detected face while preserving the video tile's aspect ratio, and briefly holds the last crop when the face is temporarily missed.
+
+Adaptive crop settings are stored per participant. The crop becomes wider and the tracking timeouts increase only after repeated large movements or sustained face occlusion; a single movement or brief detector miss does not change the profile. After ten minutes of stability, the participant's profile returns to the default tight crop.
+
+The signed-in user's own camera is excluded from face zoom automatically, so face-only tracking applies only to other participants.
+
 The extension works on Discord Web, including the regular, PTB, and Canary sites. It only changes what you see locally; it does not stop the video stream or save bandwidth. Settings are stored locally in Chrome.
 
 ## Limitations
