@@ -32,6 +32,10 @@ Adaptive crop settings are stored per participant. The crop becomes wider and th
 
 The signed-in user's own camera is excluded from face zoom automatically, so face-only tracking applies only to other participants.
 
+## How it works
+
+![Discord Video Hide tracking flow](screenshots/tracking-flow.png)
+
 The extension works on Discord Web, including the regular, PTB, and Canary sites. It only changes what you see locally; it does not stop the video stream or save bandwidth. Settings are stored locally in Chrome.
 
 ## Limitations
